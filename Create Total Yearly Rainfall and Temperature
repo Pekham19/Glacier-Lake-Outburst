@@ -1,0 +1,70 @@
+import rasterio
+import numpy as np
+import glob
+import os
+
+# =========================
+# Folder paths
+# =========================
+
+input_folder = r"Extracted_tiffs_folder"
+output_folder = r"CRU_Annual_tem"
+
+os.makedirs(output_folder, exist_ok=True)
+
+# =========================
+# Get all TIFF files
+# =========================
+
+files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
+
+# =========================
+# Group files by year
+# =========================
+
+years = {}
+
+for f in files:
+
+    name = os.path.basename(f)
+    year = name.split("_")[2]
+
+    years.setdefault(year, []).append(f)
+
+# =========================
+# Calculate yearly sum
+# =========================
+
+for year, monthly_files in years.items():
+
+    arrays = []
+
+    for f in monthly_files:
+
+        with rasterio.open(f) as src:
+
+            data = src.read(1).astype("float32")
+
+            nodata = src.nodata
+
+            if nodata is not None:
+                data[data == nodata] = np.nan
+
+            arrays.append(data)
+
+            profile = src.profile
+
+    # yearly rainfall = sum of 12 months
+    annual = np.nansum(arrays, axis=0)
+
+    # update raster profile
+    profile.update(dtype=rasterio.float32, nodata=np.nan)
+
+    outfile = os.path.join(output_folder, f"CRU_precip_{year}.tif")
+
+    with rasterio.open(outfile, "w", **profile) as dst:
+        dst.write(annual.astype("float32"), 1)
+
+    print("Created:", outfile)
+
+print("All yearly files created successfully")
