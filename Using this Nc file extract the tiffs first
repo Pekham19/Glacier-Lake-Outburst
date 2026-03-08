@@ -1,0 +1,45 @@
+import xarray as xr
+import rioxarray
+import os
+
+# =========================
+# File paths
+# =========================
+
+nc_file = r"timeseries-tas-monthly-mean_cru-x0.5_cru-ts4.09-historical_timeseries_mean_1901-2024.nc"
+
+output_folder = r"CRU_Global_tem"
+os.makedirs(output_folder, exist_ok=True)
+
+# =========================
+# Load NetCDF
+# =========================
+
+ds = xr.open_dataset(nc_file)
+
+pr = ds["timeseries-tas-monthly-mean"]
+
+# rename dimensions for rioxarray
+pr = pr.rename({"lon": "x", "lat": "y"})
+
+# assign CRS
+pr = pr.rio.write_crs("EPSG:4326")
+
+print("Dataset shape:", pr.shape)
+
+# =========================
+# Export each month
+# =========================
+
+for i in range(len(pr.time)):
+
+    data = pr.isel(time=i)
+
+    year = int(data.time.dt.year)
+    month = int(data.time.dt.month)
+
+    outfile = os.path.join(output_folder, f"CRU_precip_{year}_{month:02d}.tif")
+
+    data.rio.to_raster(outfile)
+
+print("Export completed successfully")
